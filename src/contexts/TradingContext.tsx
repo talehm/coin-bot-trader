@@ -225,6 +225,22 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     toast.success(`${action.toUpperCase()} order executed at $${price.toFixed(2)}`);
   };
 
+  // Check if target price has been reached and execute trade if needed
+  const checkTargetPrice = () => {
+    if (!settings.isActive || !currentPrice || !targetPrice) return false;
+    
+    const shouldTrade = settings.lastAction === 'buy' 
+      ? currentPrice >= targetPrice  // If last action was buy, sell when price reaches target (higher)
+      : currentPrice <= targetPrice;  // If last action was sell, buy when price reaches target (lower)
+    
+    if (shouldTrade) {
+      createMockTrade();
+      return true;
+    }
+    
+    return false;
+  };
+
   // Fetch initial data or setup simulation
   useEffect(() => {
     // Set initial base price based on selected coin pair
@@ -272,14 +288,7 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     
     // In simulation mode, check if we should execute a trade based on price movement
     if (settings.mode === 'simulation') {
-      // Check if the price has reached the target price
-      const shouldTrade = settings.lastAction === 'buy' 
-        ? currentPrice >= targetPrice  // If last action was buy, sell when price reaches target (higher)
-        : currentPrice <= targetPrice;  // If last action was sell, buy when price reaches target (lower)
-      
-      if (shouldTrade) {
-        createMockTrade();
-      }
+      checkTargetPrice();
     }
   }, [settings.isActive, currentPrice, targetPrice]);
 
