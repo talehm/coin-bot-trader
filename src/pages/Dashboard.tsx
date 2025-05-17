@@ -7,7 +7,7 @@ import RecentTrades from '@/components/trading/RecentTrades';
 import { useTrading } from '@/contexts/TradingContext';
 
 const Dashboard: React.FC = () => {
-  const { settings, currentPrice, targetPrice } = useTrading();
+  const { settings, currentPrice, targetPrice, pendingOrder } = useTrading();
   
   // Calculate percentage to target
   const calculatePercentToTarget = () => {
@@ -21,12 +21,28 @@ const Dashboard: React.FC = () => {
   
   return (
     <div className="space-y-6">
-      {settings.isActive && percentToTarget && (
-        <div className={`p-2 rounded-lg ${Number(percentToTarget) > 0 ? 'bg-profit/20' : 'bg-loss/20'} mb-2`}>
-          <p className="text-center text-sm">
-            {settings.lastAction === 'buy' ? 'Waiting to sell' : 'Waiting to buy'} - 
-            Price needs to change by {Math.abs(Number(percentToTarget))}% to reach target
-          </p>
+      {/* Pending Order Status Display */}
+      {settings.isActive && pendingOrder && (
+        <div className={`p-3 rounded-lg border ${pendingOrder.action === 'buy' ? 'border-profit bg-profit/10' : 'border-loss bg-loss/10'} mb-2`}>
+          <div className="flex justify-between items-center">
+            <div>
+              <span className="text-sm font-medium">Pending {pendingOrder.action.toUpperCase()} Order</span>
+              <p className="text-xs text-muted-foreground mt-1">
+                {pendingOrder.amount} {pendingOrder.pair.substring(0, 3)} at ${pendingOrder.targetPrice.toFixed(2)}
+              </p>
+            </div>
+            {percentToTarget && (
+              <div className="text-right">
+                <span className="text-sm font-medium">
+                  {Math.abs(Number(percentToTarget))}% 
+                  {Number(percentToTarget) > 0 ? ' increase' : ' decrease'} needed
+                </span>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Current: ${currentPrice?.toFixed(2)} 
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
       

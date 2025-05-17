@@ -16,7 +16,8 @@ const TradeControls: React.FC = () => {
     toggleMode,
     currentPrice,
     balance,
-    targetPrice
+    targetPrice,
+    pendingOrder
   } = useTrading();
 
   const { mode, isActive, coinPair, ratePercentage } = settings;
@@ -28,9 +29,6 @@ const TradeControls: React.FC = () => {
     }
     
     startTrading();
-    
-    // Target price is shown from context which will be calculated in the context
-    toast.success(`Trading started with target ${settings.lastAction === 'buy' ? 'sell' : 'buy'} price: $${targetPrice?.toFixed(2) || 'calculating...'}`);
   };
 
   return (
@@ -83,14 +81,17 @@ const TradeControls: React.FC = () => {
           <p className="text-lg font-medium">${currentPrice?.toFixed(2) || "Loading..."}</p>
         </div>
         
-        {/* Target Price */}
-        {isActive && targetPrice && (
+        {/* Pending Order */}
+        {isActive && pendingOrder && (
           <div className="border-b border-border pb-4">
-            <h4 className="text-sm text-muted-foreground">Target {settings.lastAction === 'buy' ? 'Sell' : 'Buy'} Price</h4>
-            <p className="text-lg font-medium">${targetPrice.toFixed(2)}</p>
+            <h4 className="text-sm text-muted-foreground">Pending Order</h4>
+            <p className="text-lg font-medium flex items-center">
+              <span className={`mr-2 h-2 w-2 rounded-full ${pendingOrder.action === 'buy' ? 'bg-profit' : 'bg-loss'} animate-pulse-slow`}></span>
+              {pendingOrder.action.toUpperCase()} at ${pendingOrder.targetPrice.toFixed(2)}
+            </p>
           </div>
         )}
-
+        
         {/* Trading Status */}
         <div className="border-b border-border pb-4">
           <h4 className="text-sm text-muted-foreground">Trading Status</h4>

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 export type TradingMode = 'simulation' | 'live';
 export type CoinPair = string;
 export type TradingAction = 'buy' | 'sell';
+export type OrderStatus = 'pending' | 'completed' | 'failed';
 
 export interface Trade {
   id: string;
@@ -15,8 +16,18 @@ export interface Trade {
   price: number;
   amount: number;
   total: number;
-  status: 'completed' | 'pending' | 'failed';
+  status: OrderStatus;
   mode: TradingMode;
+}
+
+export interface PendingOrder {
+  id: string;
+  timestamp: number;
+  pair: string;
+  action: TradingAction;
+  targetPrice: number;
+  amount: number;
+  status: OrderStatus;
 }
 
 export interface TradingSettings {
@@ -37,6 +48,7 @@ interface TradingContextType {
   settings: TradingSettings;
   updateSettings: (settings: Partial<TradingSettings>) => void;
   trades: Trade[];
+  pendingOrder: PendingOrder | null;
   currentPrice: number | null;
   targetPrice: number | null;
   priceHistory: PriceData[];
@@ -85,6 +97,7 @@ const TradingContext = createContext<TradingContextType | undefined>(undefined);
 export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<TradingSettings>(defaultSettings);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [pendingOrder, setPendingOrder] = useState<PendingOrder | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number | null>(basePrices[defaultSettings.coinPair]);
   const [targetPrice, setTargetPrice] = useState<number | null>(null);
   const [priceHistory, setPriceHistory] = useState<PriceData[]>([]);
@@ -143,48 +156,42 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     return currentPrice * multiplier;
   };
 
-  // Start trading
-  const startTrading = () => {
-    if (settings.isActive) return;
-    
-    // Calculate target price when trading starts
-    const newTargetPrice = calculateTargetPrice();
-    setTargetPrice(newTargetPrice);
-    
-    updateSettings({ isActive: true });
-    toast.success("Trading started");
-  };
-
-  // Stop trading
-  const stopTrading = () => {
-    if (!settings.isActive) return;
-    
-    updateSettings({ isActive: false });
-    setTargetPrice(null);
-    toast.info("Trading stopped");
-  };
-
-  // Generate a new mock price
-  const generateMockPrice = (lastPrice: number) => {
-    const changePercent = (Math.random() * 2 - 1) * MOCK_VOLATILITY;
-    return lastPrice * (1 + changePercent);
-  };
-
-  // Create a mock trade based on current price and settings
-  const createMockTrade = () => {
-    if (!currentPrice) return;
+  // Create a pending order
+  const createPendingOrder = () => {
+    if (!currentPrice || !targetPrice) return;
     
     const action = settings.lastAction === 'buy' ? 'sell' : 'buy';
-    const price = currentPrice;
     const amount = settings.amount;
-    const total = price * amount;
     
+    const newOrder: PendingOrder = {
+      id: `order-${Date.now()}`,
+      timestamp: Date.now(),
+      pair: settings.coinPair,
+      action,
+      targetPrice,
+      amount,
+      status: 'pending',
+    };
+    
+    setPendingOrder(newOrder);
+    
+    toast.success(`${action.toUpperCase()} order placed at target price: $${targetPrice.toFixed(2)}`);
+  };
+
+  // Execute trade when target price is reached
+  const executePendingOrder = () => {
+    if (!pendingOrder || !currentPrice) return;
+    
+    const { action, targetPrice, amount } = pendingOrder;
+    const total = targetPrice * amount;
+    
+    // Create a completed trade
     const newTrade: Trade = {
       id: `trade-${Date.now()}`,
       timestamp: Date.now(),
       pair: settings.coinPair,
       action,
-      price,
+      price: targetPrice,
       amount,
       total,
       status: 'completed',
@@ -192,22 +199,9 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     };
     
     setTrades(prev => [newTrade, ...prev]);
+    
+    // Update last action
     updateSettings({ lastAction: action });
-    
-    // Recalculate target price after a trade
-    const newTargetPrice = calculateTargetPrice();
-    setTargetPrice(newTargetPrice);
-    
-    // Update metrics
-    setMetrics(prev => ({
-      ...prev,
-      totalTrades: prev.totalTrades + 1,
-      successfulTrades: prev.successfulTrades + 1,
-      // This is simplified - in reality would calculate actual profit based on buys and sells
-      totalProfit: prev.totalProfit + (action === 'sell' ? total * settings.ratePercentage / 100 : 0),
-      roi: prev.roi + (action === 'sell' ? settings.ratePercentage : 0),
-      winRate: ((prev.successfulTrades + 1) / (prev.totalTrades + 1)) * 100,
-    }));
     
     // Update balances based on the trade
     if (action === 'buy') {
@@ -222,23 +216,112 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
       }));
     }
     
-    toast.success(`${action.toUpperCase()} order executed at $${price.toFixed(2)}`);
+    // Update metrics
+    setMetrics(prev => ({
+      ...prev,
+      totalTrades: prev.totalTrades + 1,
+      successfulTrades: prev.successfulTrades + 1,
+      // This is simplified - in reality would calculate actual profit based on buys and sells
+      totalProfit: prev.totalProfit + (action === 'sell' ? total * settings.ratePercentage / 100 : 0),
+      roi: prev.roi + (action === 'sell' ? settings.ratePercentage : 0),
+      winRate: ((prev.successfulTrades + 1) / (prev.totalTrades + 1)) * 100,
+    }));
+    
+    // Clear the pending order
+    setPendingOrder(null);
+    
+    // Calculate new target price for the next trade
+    const newTargetPrice = calculateTargetPrice();
+    setTargetPrice(newTargetPrice);
+    
+    // Create a new pending order
+    setTimeout(() => {
+      if (settings.isActive && newTargetPrice) {
+        const newOrder: PendingOrder = {
+          id: `order-${Date.now()}`,
+          timestamp: Date.now(),
+          pair: settings.coinPair,
+          action: action === 'buy' ? 'sell' : 'buy',
+          targetPrice: newTargetPrice,
+          amount: settings.amount,
+          status: 'pending',
+        };
+        
+        setPendingOrder(newOrder);
+        
+        toast.success(`New ${newOrder.action.toUpperCase()} order placed at target price: $${newTargetPrice.toFixed(2)}`);
+      }
+    }, 1000); // Small delay to simulate order placement
+    
+    toast.success(`${action.toUpperCase()} order executed at $${targetPrice.toFixed(2)}`);
   };
 
-  // Check if target price has been reached and execute trade if needed
-  const checkTargetPrice = () => {
-    if (!settings.isActive || !currentPrice || !targetPrice) return false;
+  // Check if target price has been reached to execute the pending order
+  const checkPendingOrder = () => {
+    if (!pendingOrder || !currentPrice || !settings.isActive) return;
     
-    const shouldTrade = settings.lastAction === 'buy' 
-      ? currentPrice >= targetPrice  // If last action was buy, sell when price reaches target (higher)
-      : currentPrice <= targetPrice;  // If last action was sell, buy when price reaches target (lower)
+    const { action, targetPrice } = pendingOrder;
     
-    if (shouldTrade) {
-      createMockTrade();
-      return true;
+    const shouldExecute = action === 'buy' 
+      ? currentPrice <= targetPrice  // For buy orders, execute when price falls to target or below
+      : currentPrice >= targetPrice;  // For sell orders, execute when price rises to target or above
+    
+    if (shouldExecute) {
+      executePendingOrder();
+    }
+  };
+
+  // Start trading
+  const startTrading = () => {
+    if (settings.isActive || !currentPrice) return;
+    
+    // Calculate target price when trading starts
+    const newTargetPrice = calculateTargetPrice();
+    setTargetPrice(newTargetPrice);
+    
+    updateSettings({ isActive: true });
+    
+    // Create initial pending order
+    if (newTargetPrice) {
+      const action = settings.lastAction === 'buy' ? 'sell' : 'buy';
+      const newOrder: PendingOrder = {
+        id: `order-${Date.now()}`,
+        timestamp: Date.now(),
+        pair: settings.coinPair,
+        action,
+        targetPrice: newTargetPrice,
+        amount: settings.amount,
+        status: 'pending',
+      };
+      
+      setPendingOrder(newOrder);
+      
+      toast.success(`${action.toUpperCase()} order placed at target price: $${newTargetPrice.toFixed(2)}`);
     }
     
-    return false;
+    toast.success("Trading started");
+  };
+
+  // Stop trading
+  const stopTrading = () => {
+    if (!settings.isActive) return;
+    
+    updateSettings({ isActive: false });
+    setTargetPrice(null);
+    
+    // Cancel any pending orders
+    if (pendingOrder) {
+      toast.info(`Canceling pending ${pendingOrder.action.toUpperCase()} order`);
+      setPendingOrder(null);
+    }
+    
+    toast.info("Trading stopped");
+  };
+
+  // Generate a new mock price
+  const generateMockPrice = (lastPrice: number) => {
+    const changePercent = (Math.random() * 2 - 1) * MOCK_VOLATILITY;
+    return lastPrice * (1 + changePercent);
   };
 
   // Fetch initial data or setup simulation
@@ -282,15 +365,15 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     return () => clearInterval(interval);
   }, [currentPrice]);
 
-  // Trading logic
+  // Trading logic - check if pending orders should be executed
   useEffect(() => {
-    if (!settings.isActive || !currentPrice || !targetPrice) return;
+    if (!settings.isActive || !currentPrice) return;
     
-    // In simulation mode, check if we should execute a trade based on price movement
+    // In simulation mode, check if we should execute pending orders
     if (settings.mode === 'simulation') {
-      checkTargetPrice();
+      checkPendingOrder();
     }
-  }, [settings.isActive, currentPrice, targetPrice]);
+  }, [settings.isActive, currentPrice, pendingOrder]);
 
   return (
     <TradingContext.Provider
@@ -298,6 +381,7 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
         settings,
         updateSettings,
         trades,
+        pendingOrder,
         currentPrice,
         targetPrice,
         priceHistory,
