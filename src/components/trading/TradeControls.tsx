@@ -6,6 +6,7 @@ import { TrendingUp, TrendingDown, Play, Pause } from 'lucide-react';
 import { useTrading } from '@/contexts/TradingContext';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 const TradeControls: React.FC = () => {
   const { 
@@ -14,10 +15,23 @@ const TradeControls: React.FC = () => {
     stopTrading, 
     toggleMode,
     currentPrice,
-    balance
+    balance,
+    targetPrice
   } = useTrading();
 
-  const { mode, isActive } = settings;
+  const { mode, isActive, coinPair, ratePercentage } = settings;
+
+  const handleStartTrading = () => {
+    if (!currentPrice) {
+      toast.error("Cannot start trading: Current price is not available");
+      return;
+    }
+    
+    startTrading();
+    
+    // Target price is shown from context which will be calculated in the context
+    toast.success(`Trading started with target ${settings.lastAction === 'buy' ? 'sell' : 'buy'} price: $${targetPrice?.toFixed(2) || 'calculating...'}`);
+  };
 
   return (
     <Card className="trading-card">
@@ -45,6 +59,12 @@ const TradeControls: React.FC = () => {
           </div>
         </div>
 
+        {/* Trading Pair Display */}
+        <div className="border-b border-border pb-4">
+          <h4 className="text-sm text-muted-foreground">Trading Pair</h4>
+          <p className="text-lg font-medium">{coinPair}</p>
+        </div>
+
         {/* Current Balance Display */}
         <div className="grid grid-cols-2 gap-4 border-b border-border pb-4">
           <div>
@@ -62,6 +82,14 @@ const TradeControls: React.FC = () => {
           <h4 className="text-sm text-muted-foreground">Current Price</h4>
           <p className="text-lg font-medium">${currentPrice?.toFixed(2) || "Loading..."}</p>
         </div>
+        
+        {/* Target Price */}
+        {isActive && targetPrice && (
+          <div className="border-b border-border pb-4">
+            <h4 className="text-sm text-muted-foreground">Target {settings.lastAction === 'buy' ? 'Sell' : 'Buy'} Price</h4>
+            <p className="text-lg font-medium">${targetPrice.toFixed(2)}</p>
+          </div>
+        )}
 
         {/* Trading Status */}
         <div className="border-b border-border pb-4">
@@ -84,7 +112,7 @@ const TradeControls: React.FC = () => {
         {/* Start/Stop Trading Buttons */}
         <div className="grid grid-cols-2 gap-4">
           <Button 
-            onClick={startTrading} 
+            onClick={handleStartTrading} 
             disabled={isActive}
             className="bg-profit hover:bg-profit/80"
           >

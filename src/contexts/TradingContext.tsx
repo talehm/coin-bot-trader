@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from "sonner";
 
@@ -37,6 +38,7 @@ interface TradingContextType {
   updateSettings: (settings: Partial<TradingSettings>) => void;
   trades: Trade[];
   currentPrice: number | null;
+  targetPrice: number | null;
   priceHistory: PriceData[];
   isLoading: boolean;
   startTrading: () => void;
@@ -55,8 +57,16 @@ interface TradingContextType {
   };
 }
 
+// Base prices for different crypto pairs
+const basePrices: Record<string, number> = {
+  'BTCUSDT': 20000,
+  'ETHUSDT': 1500,
+  'BNBUSDT': 300,
+  'XRPUSDT': 0.5,
+  'ADAUSDT': 0.35,
+};
+
 // Mock data for simulation mode
-const MOCK_PRICE_SEED = 20000; // Base price for BTC/USDT
 const MOCK_VOLATILITY = 0.005; // 0.5% price movement per update
 
 // Default settings
@@ -75,7 +85,8 @@ const TradingContext = createContext<TradingContextType | undefined>(undefined);
 export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<TradingSettings>(defaultSettings);
   const [trades, setTrades] = useState<Trade[]>([]);
-  const [currentPrice, setCurrentPrice] = useState<number | null>(MOCK_PRICE_SEED);
+  const [currentPrice, setCurrentPrice] = useState<number | null>(basePrices[defaultSettings.coinPair]);
+  const [targetPrice, setTargetPrice] = useState<number | null>(null);
   const [priceHistory, setPriceHistory] = useState<PriceData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [balance, setBalance] = useState({ base: 1, quote: 20000 }); // 1 BTC, 20000 USDT
@@ -90,6 +101,15 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
   // Function to update settings
   const updateSettings = (newSettings: Partial<TradingSettings>) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
+    
+    // If coinPair changed, update current price to base price for that pair
+    if (newSettings.coinPair && newSettings.coinPair !== settings.coinPair) {
+      const newBasePrice = basePrices[newSettings.coinPair] || 0;
+      setCurrentPrice(newBasePrice);
+      
+      // Reset price history when changing pairs
+      setPriceHistory([]);
+    }
   };
 
   // Toggle between simulation and live mode
@@ -113,9 +133,23 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
+  // Calculate target price based on current price and rate percentage
+  const calculateTargetPrice = () => {
+    if (!currentPrice) return null;
+    
+    // If last action was sell, next action is buy at a lower price
+    // If last action was buy, next action is sell at a higher price
+    const multiplier = settings.lastAction === 'buy' ? 1 + settings.ratePercentage / 100 : 1 - settings.ratePercentage / 100;
+    return currentPrice * multiplier;
+  };
+
   // Start trading
   const startTrading = () => {
     if (settings.isActive) return;
+    
+    // Calculate target price when trading starts
+    const newTargetPrice = calculateTargetPrice();
+    setTargetPrice(newTargetPrice);
     
     updateSettings({ isActive: true });
     toast.success("Trading started");
@@ -126,6 +160,7 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (!settings.isActive) return;
     
     updateSettings({ isActive: false });
+    setTargetPrice(null);
     toast.info("Trading stopped");
   };
 
@@ -159,6 +194,10 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     setTrades(prev => [newTrade, ...prev]);
     updateSettings({ lastAction: action });
     
+    // Recalculate target price after a trade
+    const newTargetPrice = calculateTargetPrice();
+    setTargetPrice(newTargetPrice);
+    
     // Update metrics
     setMetrics(prev => ({
       ...prev,
@@ -188,15 +227,18 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   // Fetch initial data or setup simulation
   useEffect(() => {
+    // Set initial base price based on selected coin pair
+    const basePrice = basePrices[settings.coinPair] || 20000;
+    
     // In a real app, we would fetch the initial data from the backend
     const mockInitialPrices: PriceData[] = Array.from({ length: 20 }).map((_, index) => ({
       timestamp: Date.now() - (19 - index) * 60000,
-      price: MOCK_PRICE_SEED * (1 + ((Math.random() * 2 - 1) * 0.1))
+      price: basePrice * (1 + ((Math.random() * 2 - 1) * 0.1))
     }));
     
     setPriceHistory(mockInitialPrices);
     setCurrentPrice(mockInitialPrices[mockInitialPrices.length - 1].price);
-  }, []);
+  }, [settings.coinPair]);
 
   // Simulate price updates
   useEffect(() => {
@@ -226,25 +268,20 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   // Trading logic
   useEffect(() => {
-    if (!settings.isActive || !currentPrice) return;
+    if (!settings.isActive || !currentPrice || !targetPrice) return;
     
     // In simulation mode, check if we should execute a trade based on price movement
     if (settings.mode === 'simulation') {
-      // Simple logic: if price moved by ratePercentage since last action, execute a trade
-      const lastTrade = trades[0];
+      // Check if the price has reached the target price
+      const shouldTrade = settings.lastAction === 'buy' 
+        ? currentPrice >= targetPrice  // If last action was buy, sell when price reaches target (higher)
+        : currentPrice <= targetPrice;  // If last action was sell, buy when price reaches target (lower)
       
-      if (!lastTrade || priceHistory.length < 2) return;
-      
-      const priceChange = (currentPrice - lastTrade.price) / lastTrade.price * 100;
-      
-      if (
-        (settings.lastAction === 'buy' && priceChange >= settings.ratePercentage) || 
-        (settings.lastAction === 'sell' && priceChange <= -settings.ratePercentage)
-      ) {
+      if (shouldTrade) {
         createMockTrade();
       }
     }
-  }, [settings.isActive, currentPrice, priceHistory, settings.lastAction, settings.ratePercentage]);
+  }, [settings.isActive, currentPrice, targetPrice]);
 
   return (
     <TradingContext.Provider
@@ -253,6 +290,7 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
         updateSettings,
         trades,
         currentPrice,
+        targetPrice,
         priceHistory,
         isLoading,
         startTrading,
