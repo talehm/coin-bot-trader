@@ -164,19 +164,26 @@ const Dashboard: React.FC = () => {
         // Set cooldown to true before executing order
         setIsInCooldown(true);
         
-        // Add this order ID to the processed set
-        setProcessedOrderIds(prev => new Set(prev).add(order.id));
+        // Add this order ID to the processed set immediately to prevent multiple executions
+        setProcessedOrderIds(prev => {
+          const newSet = new Set(prev);
+          newSet.add(order.id);
+          return newSet;
+        });
         
         // Toast notification that order was executed automatically
         toast.info(`${order.pair} reached target price of $${order.targetPrice.toFixed(2)}. Executing ${order.action.toUpperCase()} order automatically.`);
         
         // Execute the order with a slight delay to avoid state update issues
         setTimeout(() => {
-          simulateTargetPriceReached(order);
-          
-          // Remove the executed order from mocked orders list if it's not the real pending order
-          if (order.id !== pendingOrder?.id) {
-            setMockedPendingOrders(prev => prev.filter(o => o.id !== order.id));
+          // Double check the order hasn't already been processed due to possible race conditions
+          if (!processedOrderIds.has(order.id)) {
+            simulateTargetPriceReached(order);
+            
+            // Remove the executed order from mocked orders list if it's not the real pending order
+            if (order.id !== pendingOrder?.id) {
+              setMockedPendingOrders(prev => prev.filter(o => o.id !== order.id));
+            }
           }
         
           // Start 10-second cooldown timer
@@ -191,9 +198,9 @@ const Dashboard: React.FC = () => {
               duration: 2000
             });
           }, 10000);
-        }, 10);
+        }, 10); // Small delay to prevent race conditions
         
-        // Only execute first matching order, then return
+        // Only execute first matching order, then return to prevent checking other orders
         return;
       }
     }
