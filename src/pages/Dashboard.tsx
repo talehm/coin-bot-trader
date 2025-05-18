@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import PriceChart from '@/components/trading/PriceChart';
 import TradeControls from '@/components/trading/TradeControls';
@@ -22,18 +23,8 @@ const Dashboard: React.FC = () => {
   // Add a state to track the order execution cooldown period
   const [isInCooldown, setIsInCooldown] = useState(false);
   
-  // Calculate percentage to target
-  const calculatePercentToTarget = () => {
-    if (!currentPrice || !targetPrice) return null;
-    
-    const percentDiff = ((targetPrice - currentPrice) / currentPrice) * 100;
-    return percentDiff.toFixed(2);
-  };
-  
-  const percentToTarget = calculatePercentToTarget();
-  
-  // Mocked additional pending orders for display purposes
-  const mockedPendingOrders: PendingOrder[] = [
+  // Add state to track mocked orders that have been executed
+  const [mockedPendingOrders, setMockedPendingOrders] = useState<PendingOrder[]>([
     {
       id: 'mocked-order-1',
       timestamp: Date.now() - 1800000, // 30 minutes ago
@@ -52,7 +43,17 @@ const Dashboard: React.FC = () => {
       amount: 1.2,
       status: 'pending'
     }
-  ];
+  ]);
+  
+  // Calculate percentage to target
+  const calculatePercentToTarget = () => {
+    if (!currentPrice || !targetPrice) return null;
+    
+    const percentDiff = ((targetPrice - currentPrice) / currentPrice) * 100;
+    return percentDiff.toFixed(2);
+  };
+  
+  const percentToTarget = calculatePercentToTarget();
   
   // Combine real pending order with mocked ones for display
   const displayOrders = pendingOrder 
@@ -85,6 +86,11 @@ const Dashboard: React.FC = () => {
       });
     }
     
+    // Remove the executed order from displayed orders
+    if (order.id !== pendingOrder?.id) {
+      setMockedPendingOrders(prev => prev.filter(o => o.id !== order.id));
+    }
+    
     // Start 10-second cooldown timer
     toast.info("Waiting 10 seconds before processing next order...", {
       duration: 9000
@@ -97,7 +103,7 @@ const Dashboard: React.FC = () => {
         duration: 2000
       });
     }, 10000);
-  }, [simulateTargetPriceReached, settings.ratePercentage, isInCooldown]);
+  }, [simulateTargetPriceReached, settings.ratePercentage, isInCooldown, pendingOrder]);
   
   // Debug execution conditions
   useEffect(() => {
@@ -123,7 +129,6 @@ const Dashboard: React.FC = () => {
   }, [currentPrice, displayOrders, settings.isActive, settings.coinPair]);
   
   // Function to check and execute orders based on price conditions
-  // Removing redundant settings.isActive check as we control this at the useEffect level
   const checkAndExecuteOrders = useCallback(() => {
     // Don't execute orders during cooldown period
     if (isInCooldown) {
@@ -165,17 +170,12 @@ const Dashboard: React.FC = () => {
         // Execute the order with a slight delay to avoid state update issues
         setTimeout(() => {
           simulateTargetPriceReached(order);
-        
-          // Show profit update notification if it's a sell order
-          if (order.action === 'sell') {
-            const profitAmount = (order.targetPrice * order.amount * settings.ratePercentage / 100).toFixed(2);
-            
-            toast.success(`Profit increased by $${profitAmount}`, {
-              duration: 3000,
-              className: "bg-profit/10 border-profit text-profit"
-            });
-          }
           
+          // Remove the executed order from mocked orders list if it's not the real pending order
+          if (order.id !== pendingOrder?.id) {
+            setMockedPendingOrders(prev => prev.filter(o => o.id !== order.id));
+          }
+        
           // Start 10-second cooldown timer
           toast.info("Waiting 10 seconds before processing next order...", {
             duration: 9000
@@ -194,7 +194,7 @@ const Dashboard: React.FC = () => {
         return;
       }
     }
-  }, [currentPrice, displayOrders, simulateTargetPriceReached, settings.ratePercentage, settings.coinPair, isInCooldown]);
+  }, [currentPrice, displayOrders, simulateTargetPriceReached, settings.ratePercentage, settings.coinPair, isInCooldown, pendingOrder]);
   
   // Setup interval to check price conditions every 10 seconds
   useEffect(() => {
