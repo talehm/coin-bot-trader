@@ -79,7 +79,10 @@ const Dashboard: React.FC = () => {
     if (currentPrice && settings.isActive && displayOrders.length > 0) {
       console.log(`Current price: $${currentPrice.toFixed(2)}`);
       
-      displayOrders.forEach(order => {
+      // Only check orders for the currently selected trading pair
+      const ordersForCurrentPair = displayOrders.filter(order => order.pair === settings.coinPair);
+      
+      ordersForCurrentPair.forEach(order => {
         const priceDiff = currentPrice - order.targetPrice;
         const isPriceMet = order.action === 'buy' 
           ? currentPrice <= order.targetPrice 
@@ -92,7 +95,7 @@ const Dashboard: React.FC = () => {
         );
       });
     }
-  }, [currentPrice, displayOrders, settings.isActive]);
+  }, [currentPrice, displayOrders, settings.isActive, settings.coinPair]);
   
   // Function to check and execute orders based on price conditions
   // Removing redundant settings.isActive check as we control this at the useEffect level
@@ -104,8 +107,13 @@ const Dashboard: React.FC = () => {
     // Create a copy to avoid modification during iteration issues
     const ordersToProcess = [...displayOrders];
     
+    // Filter to only process orders for the current trading pair
+    const relevantOrders = ordersToProcess.filter(order => order.pair === settings.coinPair);
+    
+    console.log(`Found ${relevantOrders.length} orders for current pair ${settings.coinPair}`);
+    
     // Check if any orders should be executed based on current price
-    ordersToProcess.forEach(order => {
+    relevantOrders.forEach(order => {
       // Buy orders execute when price falls to target or below
       // Sell orders execute when price rises to target or above
       const isPriceMet = order.action === 'buy' 
@@ -136,7 +144,7 @@ const Dashboard: React.FC = () => {
         }, 10);
       }
     });
-  }, [currentPrice, displayOrders, simulateTargetPriceReached, settings.ratePercentage]);
+  }, [currentPrice, displayOrders, simulateTargetPriceReached, settings.ratePercentage, settings.coinPair]);
   
   // Setup interval to check price conditions every 10 seconds
   useEffect(() => {
