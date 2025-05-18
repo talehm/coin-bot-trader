@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PriceChart from '@/components/trading/PriceChart';
 import TradeControls from '@/components/trading/TradeControls';
 import TradingMetrics from '@/components/trading/TradingMetrics';
@@ -73,6 +73,39 @@ const Dashboard: React.FC = () => {
       });
     }
   };
+  
+  // Auto execute orders when price conditions are met
+  useEffect(() => {
+    if (!currentPrice || !settings.isActive) return;
+    
+    // Check if any orders should be executed based on current price
+    displayOrders.forEach(order => {
+      // Buy orders execute when price falls to target or below
+      // Sell orders execute when price rises to target or above
+      const shouldExecute = 
+        (order.action === 'buy' && currentPrice <= order.targetPrice) || 
+        (order.action === 'sell' && currentPrice >= order.targetPrice);
+      
+      if (shouldExecute) {
+        // Toast notification that order was executed automatically
+        toast.info(`${order.pair} reached target price of $${order.targetPrice.toFixed(2)}. Executing ${order.action.toUpperCase()} order automatically.`);
+        
+        // Execute the order
+        simulateTargetPriceReached(order);
+        
+        // Show profit update notification if it's a sell order
+        const profitAmount = order.action === 'sell' ? 
+          (order.targetPrice * order.amount * settings.ratePercentage / 100).toFixed(2) : 0;
+        
+        if (order.action === 'sell') {
+          toast.success(`Profit increased by $${profitAmount}`, {
+            duration: 3000,
+            className: "bg-profit/10 border-profit text-profit"
+          });
+        }
+      }
+    });
+  }, [currentPrice, displayOrders, settings.isActive]);
   
   return (
     <div className="space-y-6">
