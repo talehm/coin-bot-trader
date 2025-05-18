@@ -6,6 +6,7 @@ import TradingMetrics from '@/components/trading/TradingMetrics';
 import RecentTrades from '@/components/trading/RecentTrades';
 import { useTrading } from '@/contexts/TradingContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 
 const Dashboard: React.FC = () => {
   const { settings, currentPrice, targetPrice, pendingOrder } = useTrading();
@@ -19,6 +20,33 @@ const Dashboard: React.FC = () => {
   };
   
   const percentToTarget = calculatePercentToTarget();
+  
+  // Mocked additional pending orders for display purposes
+  const mockedPendingOrders = [
+    {
+      id: 'mocked-order-1',
+      timestamp: Date.now() - 1800000, // 30 minutes ago
+      pair: 'BTCUSDT',
+      action: 'buy',
+      targetPrice: 19850.75,
+      amount: 0.05,
+      status: 'pending' as const
+    },
+    {
+      id: 'mocked-order-2',
+      timestamp: Date.now() - 3600000, // 1 hour ago
+      pair: 'ETHUSDT',
+      action: 'sell',
+      targetPrice: 1580.25,
+      amount: 1.2,
+      status: 'pending' as const
+    }
+  ];
+  
+  // Combine real pending order with mocked ones for display
+  const displayOrders = pendingOrder 
+    ? [pendingOrder, ...mockedPendingOrders] 
+    : mockedPendingOrders;
   
   return (
     <div className="space-y-6">
@@ -67,45 +95,45 @@ const Dashboard: React.FC = () => {
           <CardTitle>Open Orders</CardTitle>
         </CardHeader>
         <CardContent>
-          {!pendingOrder ? (
+          {displayOrders.length === 0 ? (
             <p className="text-center text-muted-foreground py-6">No open orders</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-3 font-medium">Time</th>
-                    <th className="text-left py-3 font-medium">Pair</th>
-                    <th className="text-left py-3 font-medium">Type</th>
-                    <th className="text-right py-3 font-medium">Target Price</th>
-                    <th className="text-right py-3 font-medium">Amount</th>
-                    <th className="text-right py-3 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-border hover:bg-secondary/10">
-                    <td className="py-3 text-sm">
-                      {new Date(pendingOrder.timestamp).toLocaleString()}
-                    </td>
-                    <td className="py-3 text-sm">{pendingOrder.pair}</td>
-                    <td className="py-3">
-                      <span className={`inline-flex items-center px-2 py-1 text-xs font-medium ${pendingOrder.action === 'buy' ? 'bg-profit/20 text-profit' : 'bg-loss/20 text-loss'} rounded-full`}>
-                        {pendingOrder.action.toUpperCase()}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Pair</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">Target Price</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {displayOrders.map(order => (
+                  <TableRow key={order.id} className="hover:bg-secondary/10">
+                    <TableCell className="py-3 text-sm">
+                      {new Date(order.timestamp).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="py-3 text-sm">{order.pair}</TableCell>
+                    <TableCell className="py-3">
+                      <span className={`inline-flex items-center px-2 py-1 text-xs font-medium ${order.action === 'buy' ? 'bg-profit/20 text-profit' : 'bg-loss/20 text-loss'} rounded-full`}>
+                        {order.action.toUpperCase()}
                       </span>
-                    </td>
-                    <td className="py-3 text-sm text-right">
-                      ${pendingOrder.targetPrice.toFixed(2)}
-                    </td>
-                    <td className="py-3 text-sm text-right">{pendingOrder.amount}</td>
-                    <td className="py-3 text-sm text-right">
+                    </TableCell>
+                    <TableCell className="py-3 text-sm text-right">
+                      ${order.targetPrice.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="py-3 text-sm text-right">{order.amount}</TableCell>
+                    <TableCell className="py-3 text-sm text-right">
                       <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-500/20 text-orange-500 rounded-full">
                         PENDING
                       </span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
