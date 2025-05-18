@@ -94,10 +94,12 @@ const Dashboard: React.FC = () => {
     }
   }, [currentPrice, displayOrders, settings.isActive]);
   
-  // Auto execute orders when price conditions are met
-  useEffect(() => {
-    if (!currentPrice || !settings.isActive) return;
-
+  // Function to check and execute orders based on price conditions
+  const checkAndExecuteOrders = useCallback(() => {
+    if (!currentPrice || !settings.isActive || displayOrders.length === 0) return;
+    
+    console.log(`[${new Date().toLocaleTimeString()}] Checking price conditions for ${displayOrders.length} orders...`);
+    
     // Create a copy to avoid modification during iteration issues
     const ordersToProcess = [...displayOrders];
     
@@ -133,7 +135,28 @@ const Dashboard: React.FC = () => {
         }, 10);
       }
     });
-  }, [currentPrice, displayOrders, settings.isActive, simulateTargetPriceReached, settings.ratePercentage, handleSimulateExecution]);
+  }, [currentPrice, displayOrders, settings.isActive, simulateTargetPriceReached, settings.ratePercentage]);
+  
+  // Setup interval to check price conditions every 10 seconds
+  useEffect(() => {
+    // Initial check when component mounts or dependencies change
+    checkAndExecuteOrders();
+    
+    // Set up 10-second interval for checking orders
+    const intervalId = setInterval(() => {
+      checkAndExecuteOrders();
+    }, 10000); // 10000 milliseconds = 10 seconds
+    
+    // Clean up interval on unmount or when dependencies change
+    return () => clearInterval(intervalId);
+  }, [checkAndExecuteOrders]);
+  
+  // Auto execute orders when price conditions are met (on price change)
+  useEffect(() => {
+    if (currentPrice) {
+      checkAndExecuteOrders();
+    }
+  }, [currentPrice, checkAndExecuteOrders]);
   
   return (
     <div className="space-y-6">
