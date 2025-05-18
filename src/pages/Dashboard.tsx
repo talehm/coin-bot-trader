@@ -4,7 +4,7 @@ import PriceChart from '@/components/trading/PriceChart';
 import TradeControls from '@/components/trading/TradeControls';
 import TradingMetrics from '@/components/trading/TradingMetrics';
 import RecentTrades from '@/components/trading/RecentTrades';
-import { useTrading } from '@/contexts/TradingContext';
+import { useTrading, TradingAction, PendingOrder } from '@/contexts/TradingContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -31,24 +31,24 @@ const Dashboard: React.FC = () => {
   const percentToTarget = calculatePercentToTarget();
   
   // Mocked additional pending orders for display purposes
-  const mockedPendingOrders = [
+  const mockedPendingOrders: PendingOrder[] = [
     {
       id: 'mocked-order-1',
       timestamp: Date.now() - 1800000, // 30 minutes ago
       pair: 'BTCUSDT',
-      action: 'buy',
+      action: 'buy' as TradingAction,
       targetPrice: 19850.75,
       amount: 0.05,
-      status: 'pending' as const
+      status: 'pending'
     },
     {
       id: 'mocked-order-2',
       timestamp: Date.now() - 3600000, // 1 hour ago
       pair: 'ETHUSDT',
-      action: 'sell',
+      action: 'sell' as TradingAction,
       targetPrice: 1580.25,
       amount: 1.2,
-      status: 'pending' as const
+      status: 'pending'
     }
   ];
   
@@ -58,7 +58,7 @@ const Dashboard: React.FC = () => {
     : mockedPendingOrders;
 
   // Function to handle simulating target price reached
-  const handleSimulateExecution = (order: any) => {
+  const handleSimulateExecution = (order: PendingOrder) => {
     simulateTargetPriceReached(order);
     toast.success(`Simulated ${order.pair} reaching target price of $${order.targetPrice.toFixed(2)}`);
     
