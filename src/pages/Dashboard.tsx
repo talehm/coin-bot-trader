@@ -23,27 +23,8 @@ const Dashboard: React.FC = () => {
   // Add a state to track the order execution cooldown period
   const [isInCooldown, setIsInCooldown] = useState(false);
   
-  // Add state to track mocked orders that have been executed
-  const [mockedPendingOrders, setMockedPendingOrders] = useState<PendingOrder[]>([
-    {
-      id: 'mocked-order-1',
-      timestamp: Date.now() - 1800000, // 30 minutes ago
-      pair: 'BTCUSDT',
-      action: 'buy' as TradingAction,
-      targetPrice: 19850.75,
-      amount: 0.05,
-      status: 'pending'
-    },
-    {
-      id: 'mocked-order-2',
-      timestamp: Date.now() - 3600000, // 1 hour ago
-      pair: 'ETHUSDT',
-      action: 'sell' as TradingAction,
-      targetPrice: 1580.25,
-      amount: 1.2,
-      status: 'pending'
-    }
-  ]);
+  // Add state to track mocked orders that have been executed - initialize as empty array
+  const [mockedPendingOrders, setMockedPendingOrders] = useState<PendingOrder[]>([]);
   
   // Calculate percentage to target
   const calculatePercentToTarget = () => {
