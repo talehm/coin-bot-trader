@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PriceChart from '@/components/trading/PriceChart';
 import TradeControls from '@/components/trading/TradeControls';
 import TradingMetrics from '@/components/trading/TradingMetrics';
@@ -58,7 +58,7 @@ const Dashboard: React.FC = () => {
     : mockedPendingOrders;
 
   // Function to handle simulating target price reached
-  const handleSimulateExecution = (order: PendingOrder) => {
+  const handleSimulateExecution = useCallback((order: PendingOrder) => {
     simulateTargetPriceReached(order);
     toast.success(`Simulated ${order.pair} reaching target price of $${order.targetPrice.toFixed(2)}`);
     
@@ -72,7 +72,7 @@ const Dashboard: React.FC = () => {
         className: "bg-profit/10 border-profit text-profit"
       });
     }
-  };
+  }, [simulateTargetPriceReached, settings.ratePercentage]);
   
   // Debug execution conditions
   useEffect(() => {
@@ -97,34 +97,43 @@ const Dashboard: React.FC = () => {
   // Auto execute orders when price conditions are met
   useEffect(() => {
     if (!currentPrice || !settings.isActive) return;
+
+    // Create a copy to avoid modification during iteration issues
+    const ordersToProcess = [...displayOrders];
     
     // Check if any orders should be executed based on current price
-    displayOrders.forEach(order => {
+    ordersToProcess.forEach(order => {
       // Buy orders execute when price falls to target or below
       // Sell orders execute when price rises to target or above
       const isPriceMet = order.action === 'buy' 
         ? currentPrice <= order.targetPrice 
         : currentPrice >= order.targetPrice;
+      
+      console.log(`Checking execution for ${order.pair} ${order.action}: Current $${currentPrice} vs Target $${order.targetPrice} - Execute: ${isPriceMet}`);
         
       if (isPriceMet) {
+        console.log(`EXECUTING ${order.action} order for ${order.pair} at ${order.targetPrice}`);
+        
         // Toast notification that order was executed automatically
         toast.info(`${order.pair} reached target price of $${order.targetPrice.toFixed(2)}. Executing ${order.action.toUpperCase()} order automatically.`);
         
-        // Execute the order
-        simulateTargetPriceReached(order);
+        // Execute the order with a slight delay to avoid state update issues
+        setTimeout(() => {
+          simulateTargetPriceReached(order);
         
-        // Show profit update notification if it's a sell order
-        if (order.action === 'sell') {
-          const profitAmount = (order.targetPrice * order.amount * settings.ratePercentage / 100).toFixed(2);
-          
-          toast.success(`Profit increased by $${profitAmount}`, {
-            duration: 3000,
-            className: "bg-profit/10 border-profit text-profit"
-          });
-        }
+          // Show profit update notification if it's a sell order
+          if (order.action === 'sell') {
+            const profitAmount = (order.targetPrice * order.amount * settings.ratePercentage / 100).toFixed(2);
+            
+            toast.success(`Profit increased by $${profitAmount}`, {
+              duration: 3000,
+              className: "bg-profit/10 border-profit text-profit"
+            });
+          }
+        }, 10);
       }
     });
-  }, [currentPrice, displayOrders, settings.isActive, simulateTargetPriceReached, settings.ratePercentage]);
+  }, [currentPrice, displayOrders, settings.isActive, simulateTargetPriceReached, settings.ratePercentage, handleSimulateExecution]);
   
   return (
     <div className="space-y-6">
