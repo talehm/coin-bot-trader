@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from "sonner";
 
@@ -81,6 +80,19 @@ const basePrices: Record<string, number> = {
 // Mock data for simulation mode
 const MOCK_VOLATILITY = 0.005; // 0.5% price movement per update
 
+// Initial mocked trade for demo purposes
+const initialMockedTrade: Trade = {
+  id: `trade-${Date.now() - 3600000}`,
+  timestamp: Date.now() - 3600000, // 1 hour ago
+  pair: 'ADAUSDT',
+  action: 'buy',
+  price: 0.35,
+  amount: 100,
+  total: 35,
+  status: 'completed',
+  mode: 'simulation',
+};
+
 // Default settings
 const defaultSettings: TradingSettings = {
   mode: 'simulation',
@@ -96,7 +108,7 @@ const TradingContext = createContext<TradingContextType | undefined>(undefined);
 
 export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<TradingSettings>(defaultSettings);
-  const [trades, setTrades] = useState<Trade[]>([]);
+  const [trades, setTrades] = useState<Trade[]>([initialMockedTrade]);
   const [pendingOrder, setPendingOrder] = useState<PendingOrder | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number | null>(basePrices[defaultSettings.coinPair]);
   const [targetPrice, setTargetPrice] = useState<number | null>(null);
@@ -104,11 +116,11 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [balance, setBalance] = useState({ base: 1, quote: 20000 }); // 1 BTC, 20000 USDT
   const [metrics, setMetrics] = useState({
-    totalTrades: 0,
-    successfulTrades: 0,
+    totalTrades: 1, // Starting with 1 because of our initial mocked trade
+    successfulTrades: 1,
     totalProfit: 0,
     roi: 0,
-    winRate: 0,
+    winRate: 100, // 1/1 = 100%
   });
 
   // Function to update settings
