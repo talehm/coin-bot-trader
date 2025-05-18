@@ -74,6 +74,26 @@ const Dashboard: React.FC = () => {
     }
   };
   
+  // Debug execution conditions
+  useEffect(() => {
+    if (currentPrice && settings.isActive && displayOrders.length > 0) {
+      console.log(`Current price: $${currentPrice.toFixed(2)}`);
+      
+      displayOrders.forEach(order => {
+        const priceDiff = currentPrice - order.targetPrice;
+        const isPriceMet = order.action === 'buy' 
+          ? currentPrice <= order.targetPrice 
+          : currentPrice >= order.targetPrice;
+        
+        console.log(
+          `Order: ${order.action} ${order.pair} at $${order.targetPrice.toFixed(2)} - ` +
+          `Price diff: ${priceDiff.toFixed(2)} - ` +
+          `Condition met: ${isPriceMet ? 'YES' : 'NO'}`
+        );
+      });
+    }
+  }, [currentPrice, displayOrders, settings.isActive]);
+  
   // Auto execute orders when price conditions are met
   useEffect(() => {
     if (!currentPrice || !settings.isActive) return;
@@ -82,11 +102,11 @@ const Dashboard: React.FC = () => {
     displayOrders.forEach(order => {
       // Buy orders execute when price falls to target or below
       // Sell orders execute when price rises to target or above
-      const shouldExecute = 
-        (order.action === 'buy' && currentPrice <= order.targetPrice) || 
-        (order.action === 'sell' && currentPrice >= order.targetPrice);
-      
-      if (shouldExecute) {
+      const isPriceMet = order.action === 'buy' 
+        ? currentPrice <= order.targetPrice 
+        : currentPrice >= order.targetPrice;
+        
+      if (isPriceMet) {
         // Toast notification that order was executed automatically
         toast.info(`${order.pair} reached target price of $${order.targetPrice.toFixed(2)}. Executing ${order.action.toUpperCase()} order automatically.`);
         
@@ -94,10 +114,9 @@ const Dashboard: React.FC = () => {
         simulateTargetPriceReached(order);
         
         // Show profit update notification if it's a sell order
-        const profitAmount = order.action === 'sell' ? 
-          (order.targetPrice * order.amount * settings.ratePercentage / 100).toFixed(2) : 0;
-        
         if (order.action === 'sell') {
+          const profitAmount = (order.targetPrice * order.amount * settings.ratePercentage / 100).toFixed(2);
+          
           toast.success(`Profit increased by $${profitAmount}`, {
             duration: 3000,
             className: "bg-profit/10 border-profit text-profit"
@@ -105,7 +124,7 @@ const Dashboard: React.FC = () => {
         }
       }
     });
-  }, [currentPrice, displayOrders, settings.isActive]);
+  }, [currentPrice, displayOrders, settings.isActive, simulateTargetPriceReached, settings.ratePercentage]);
   
   return (
     <div className="space-y-6">
