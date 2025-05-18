@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import PriceChart from '@/components/trading/PriceChart';
 import TradeControls from '@/components/trading/TradeControls';
@@ -19,6 +18,9 @@ const Dashboard: React.FC = () => {
     simulateTargetPriceReached, 
     metrics 
   } = useTrading();
+  
+  // Add a state to track the order execution cooldown period
+  const [isInCooldown, setIsInCooldown] = useState(false);
   
   // Calculate percentage to target
   const calculatePercentToTarget = () => {
@@ -59,6 +61,16 @@ const Dashboard: React.FC = () => {
 
   // Function to handle simulating target price reached
   const handleSimulateExecution = useCallback((order: PendingOrder) => {
+    if (isInCooldown) {
+      toast.warning("Please wait, cooling down from previous order execution", {
+        duration: 3000
+      });
+      return;
+    }
+    
+    // Set cooldown to true before executing order
+    setIsInCooldown(true);
+    
     simulateTargetPriceReached(order);
     toast.success(`Simulated ${order.pair} reaching target price of $${order.targetPrice.toFixed(2)}`);
     
@@ -72,7 +84,20 @@ const Dashboard: React.FC = () => {
         className: "bg-profit/10 border-profit text-profit"
       });
     }
-  }, [simulateTargetPriceReached, settings.ratePercentage]);
+    
+    // Start 10-second cooldown timer
+    toast.info("Waiting 10 seconds before processing next order...", {
+      duration: 9000
+    });
+    
+    // Clear cooldown after 10 seconds
+    setTimeout(() => {
+      setIsInCooldown(false);
+      toast.info("Ready to process new orders", {
+        duration: 2000
+      });
+    }, 10000);
+  }, [simulateTargetPriceReached, settings.ratePercentage, isInCooldown]);
   
   // Debug execution conditions
   useEffect(() => {
@@ -100,6 +125,12 @@ const Dashboard: React.FC = () => {
   // Function to check and execute orders based on price conditions
   // Removing redundant settings.isActive check as we control this at the useEffect level
   const checkAndExecuteOrders = useCallback(() => {
+    // Don't execute orders during cooldown period
+    if (isInCooldown) {
+      console.log("In cooldown period, skipping order checks");
+      return;
+    }
+    
     if (!currentPrice || displayOrders.length === 0) return;
     
     console.log(`[${new Date().toLocaleTimeString()}] Checking price conditions for ${displayOrders.length} orders...`);
@@ -113,7 +144,7 @@ const Dashboard: React.FC = () => {
     console.log(`Found ${relevantOrders.length} orders for current pair ${settings.coinPair}`);
     
     // Check if any orders should be executed based on current price
-    relevantOrders.forEach(order => {
+    for (const order of relevantOrders) {
       // Buy orders execute when price falls to target or below
       // Sell orders execute when price rises to target or above
       const isPriceMet = order.action === 'buy' 
@@ -124,6 +155,9 @@ const Dashboard: React.FC = () => {
         
       if (isPriceMet) {
         console.log(`EXECUTING ${order.action} order for ${order.pair} at ${order.targetPrice}`);
+        
+        // Set cooldown to true before executing order
+        setIsInCooldown(true);
         
         // Toast notification that order was executed automatically
         toast.info(`${order.pair} reached target price of $${order.targetPrice.toFixed(2)}. Executing ${order.action.toUpperCase()} order automatically.`);
@@ -141,14 +175,30 @@ const Dashboard: React.FC = () => {
               className: "bg-profit/10 border-profit text-profit"
             });
           }
+          
+          // Start 10-second cooldown timer
+          toast.info("Waiting 10 seconds before processing next order...", {
+            duration: 9000
+          });
+          
+          // Clear cooldown after 10 seconds
+          setTimeout(() => {
+            setIsInCooldown(false);
+            toast.info("Ready to process new orders", {
+              duration: 2000
+            });
+          }, 10000);
         }, 10);
+        
+        // Only execute first matching order, then return
+        return;
       }
-    });
-  }, [currentPrice, displayOrders, simulateTargetPriceReached, settings.ratePercentage, settings.coinPair]);
+    }
+  }, [currentPrice, displayOrders, simulateTargetPriceReached, settings.ratePercentage, settings.coinPair, isInCooldown]);
   
   // Setup interval to check price conditions every 10 seconds
   useEffect(() => {
-    // Only run this effect when trading is active
+    // Only run this effect when trading is active and not in cooldown
     if (!settings.isActive) return;
     
     // Initial check when component mounts or dependencies change
@@ -165,14 +215,24 @@ const Dashboard: React.FC = () => {
   
   // Auto execute orders when price conditions are met (on price change)
   useEffect(() => {
-    // Only check orders when trading is active and price changes
-    if (currentPrice && settings.isActive) {
+    // Only check orders when trading is active and price changes and not in cooldown
+    if (currentPrice && settings.isActive && !isInCooldown) {
       checkAndExecuteOrders();
     }
-  }, [currentPrice, checkAndExecuteOrders, settings.isActive]);
+  }, [currentPrice, checkAndExecuteOrders, settings.isActive, isInCooldown]);
   
   return (
     <div className="space-y-6">
+      {/* Cooldown Indicator */}
+      {isInCooldown && (
+        <div className="p-3 rounded-lg border border-warning bg-warning/10 mb-2 animate-pulse">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-warning">Cooling down</span>
+            <span className="text-xs text-muted-foreground">Waiting before processing next order</span>
+          </div>
+        </div>
+      )}
+      
       {/* Pending Order Status Display */}
       {settings.isActive && pendingOrder && (
         <div className={`p-3 rounded-lg border ${pendingOrder.action === 'buy' ? 'border-profit bg-profit/10' : 'border-loss bg-loss/10'} mb-2`}>
