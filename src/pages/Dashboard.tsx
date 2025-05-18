@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import PriceChart from '@/components/trading/PriceChart';
 import TradeControls from '@/components/trading/TradeControls';
@@ -26,6 +25,9 @@ const Dashboard: React.FC = () => {
   // Add state to track mocked orders that have been executed - initialize as empty array
   const [mockedPendingOrders, setMockedPendingOrders] = useState<PendingOrder[]>([]);
   
+  // Track processed order IDs to prevent duplicate executions
+  const [processedOrderIds, setProcessedOrderIds] = useState<Set<string>>(new Set());
+  
   // Calculate percentage to target
   const calculatePercentToTarget = () => {
     if (!currentPrice || !targetPrice) return null;
@@ -50,8 +52,19 @@ const Dashboard: React.FC = () => {
       return;
     }
     
+    // Check if this order has already been processed
+    if (processedOrderIds.has(order.id)) {
+      toast.info("This order has already been executed", {
+        duration: 3000
+      });
+      return;
+    }
+    
     // Set cooldown to true before executing order
     setIsInCooldown(true);
+    
+    // Add this order ID to the processed set
+    setProcessedOrderIds(prev => new Set(prev).add(order.id));
     
     simulateTargetPriceReached(order);
     toast.success(`Simulated ${order.pair} reaching target price of $${order.targetPrice.toFixed(2)}`);
@@ -84,7 +97,7 @@ const Dashboard: React.FC = () => {
         duration: 2000
       });
     }, 10000);
-  }, [simulateTargetPriceReached, settings.ratePercentage, isInCooldown, pendingOrder]);
+  }, [simulateTargetPriceReached, settings.ratePercentage, isInCooldown, pendingOrder, processedOrderIds]);
   
   // Debug execution conditions
   useEffect(() => {
@@ -131,6 +144,12 @@ const Dashboard: React.FC = () => {
     
     // Check if any orders should be executed based on current price
     for (const order of relevantOrders) {
+      // Skip if order has already been processed
+      if (processedOrderIds.has(order.id)) {
+        console.log(`Order ${order.id} already processed, skipping`);
+        continue;
+      }
+      
       // Buy orders execute when price falls to target or below
       // Sell orders execute when price rises to target or above
       const isPriceMet = order.action === 'buy' 
@@ -144,6 +163,9 @@ const Dashboard: React.FC = () => {
         
         // Set cooldown to true before executing order
         setIsInCooldown(true);
+        
+        // Add this order ID to the processed set
+        setProcessedOrderIds(prev => new Set(prev).add(order.id));
         
         // Toast notification that order was executed automatically
         toast.info(`${order.pair} reached target price of $${order.targetPrice.toFixed(2)}. Executing ${order.action.toUpperCase()} order automatically.`);
@@ -175,7 +197,7 @@ const Dashboard: React.FC = () => {
         return;
       }
     }
-  }, [currentPrice, displayOrders, simulateTargetPriceReached, settings.ratePercentage, settings.coinPair, isInCooldown, pendingOrder]);
+  }, [currentPrice, displayOrders, simulateTargetPriceReached, settings.coinPair, isInCooldown, pendingOrder, processedOrderIds]);
   
   // Setup interval to check price conditions every 10 seconds
   useEffect(() => {
@@ -319,6 +341,7 @@ const Dashboard: React.FC = () => {
                         size="sm" 
                         className="text-xs h-7"
                         onClick={() => handleSimulateExecution(order)}
+                        disabled={processedOrderIds.has(order.id)}
                       >
                         Simulate
                       </Button>

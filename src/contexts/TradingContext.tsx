@@ -204,6 +204,11 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     toast.success(`${action.toUpperCase()} order placed at target price: $${targetPrice.toFixed(2)}`);
   };
 
+  // Generate a unique ID based on timestamp and random value to prevent collisions
+  const generateUniqueId = (prefix: string) => {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  };
+
   // Execute trade when target price is reached
   const executePendingOrder = () => {
     if (!pendingOrder || !currentPrice) return;
@@ -211,9 +216,9 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     const { action, targetPrice, amount } = pendingOrder;
     const total = targetPrice * amount;
     
-    // Create a completed trade
+    // Create a completed trade with a unique ID
     const newTrade: Trade = {
-      id: `trade-${Date.now()}`,
+      id: generateUniqueId('trade'),
       timestamp: Date.now(),
       pair: settings.coinPair,
       action,
@@ -224,34 +229,46 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
       mode: settings.mode,
     };
     
-    setTrades(prev => [newTrade, ...prev]);
+    // Check if this trade already exists to prevent duplicates
+    const tradeExists = trades.some(trade => 
+      trade.pair === newTrade.pair && 
+      trade.action === newTrade.action &&
+      Math.abs(trade.timestamp - newTrade.timestamp) < 3000 && // Within 3 seconds
+      trade.price === newTrade.price &&
+      trade.amount === newTrade.amount
+    );
     
-    // Update last action
-    updateSettings({ lastAction: action });
-    
-    // Update balances based on the trade
-    if (action === 'buy') {
-      setBalance(prev => ({
-        base: prev.base + amount,
-        quote: prev.quote - total,
+    if (!tradeExists) {
+      setTrades(prev => [newTrade, ...prev]);
+      
+      // Update last action
+      updateSettings({ lastAction: action });
+      
+      // Update balances based on the trade
+      if (action === 'buy') {
+        setBalance(prev => ({
+          base: prev.base + amount,
+          quote: prev.quote - total,
+        }));
+      } else {
+        setBalance(prev => ({
+          base: prev.base - amount,
+          quote: prev.quote + total,
+        }));
+      }
+      
+      // Update metrics
+      setMetrics(prev => ({
+        ...prev,
+        totalTrades: prev.totalTrades + 1,
+        successfulTrades: prev.successfulTrades + 1,
+        totalProfit: prev.totalProfit + (action === 'sell' ? total * settings.ratePercentage / 100 : 0),
+        roi: prev.roi + (action === 'sell' ? settings.ratePercentage : 0),
+        winRate: ((prev.successfulTrades + 1) / (prev.totalTrades + 1)) * 100,
       }));
-    } else {
-      setBalance(prev => ({
-        base: prev.base - amount,
-        quote: prev.quote + total,
-      }));
+      
+      toast.success(`${action.toUpperCase()} order executed at $${targetPrice.toFixed(2)}`);
     }
-    
-    // Update metrics
-    setMetrics(prev => ({
-      ...prev,
-      totalTrades: prev.totalTrades + 1,
-      successfulTrades: prev.successfulTrades + 1,
-      // This is simplified - in reality would calculate actual profit based on buys and sells
-      totalProfit: prev.totalProfit + (action === 'sell' ? total * settings.ratePercentage / 100 : 0),
-      roi: prev.roi + (action === 'sell' ? settings.ratePercentage : 0),
-      winRate: ((prev.successfulTrades + 1) / (prev.totalTrades + 1)) * 100,
-    }));
     
     // Clear the pending order
     setPendingOrder(null);
@@ -268,7 +285,7 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     setTimeout(() => {
       if (settings.isActive && newTargetPrice) {
         const newOrder: PendingOrder = {
-          id: `order-${Date.now()}`,
+          id: generateUniqueId('order'),
           timestamp: Date.now(),
           pair: settings.coinPair,
           action: action === 'buy' ? 'sell' : 'buy',
@@ -282,8 +299,6 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
         toast.success(`New ${newOrder.action.toUpperCase()} order placed at target price: $${newTargetPrice.toFixed(2)}`);
       }
     }, 10000); // 10 seconds delay
-    
-    toast.success(`${action.toUpperCase()} order executed at $${targetPrice.toFixed(2)}`);
   };
 
   // Check if target price has been reached to execute the pending order
@@ -315,7 +330,7 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (newTargetPrice) {
       const action = settings.lastAction === 'buy' ? 'sell' : 'buy';
       const newOrder: PendingOrder = {
-        id: `order-${Date.now()}`,
+        id: generateUniqueId('order'),
         timestamp: Date.now(),
         pair: settings.coinPair,
         action,
@@ -365,7 +380,7 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     
     // For mocked orders, create a completed trade from the order
     const newTrade: Trade = {
-      id: `trade-${Date.now()}`,
+      id: generateUniqueId('trade'),
       timestamp: Date.now(),
       pair: order.pair,
       action: order.action,
@@ -376,19 +391,30 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
       mode: settings.mode,
     };
     
-    // Add to trades
-    setTrades(prev => [newTrade, ...prev]);
+    // Check if this trade already exists to prevent duplicates
+    const tradeExists = trades.some(trade => 
+      trade.pair === newTrade.pair && 
+      trade.action === newTrade.action &&
+      Math.abs(trade.timestamp - newTrade.timestamp) < 3000 && // Within 3 seconds
+      trade.price === newTrade.price &&
+      trade.amount === newTrade.amount
+    );
     
-    // Update metrics
-    setMetrics(prev => ({
-      totalTrades: prev.totalTrades + 1,
-      successfulTrades: prev.successfulTrades + 1,
-      totalProfit: prev.totalProfit + (order.action === 'sell' ? newTrade.total * settings.ratePercentage / 100 : 0),
-      roi: prev.roi + (order.action === 'sell' ? settings.ratePercentage : 0),
-      winRate: ((prev.successfulTrades + 1) / (prev.totalTrades + 1)) * 100,
-    }));
-    
-    toast.success(`${order.action.toUpperCase()} order executed at $${order.targetPrice.toFixed(2)}`);
+    if (!tradeExists) {
+      // Add to trades
+      setTrades(prev => [newTrade, ...prev]);
+      
+      // Update metrics
+      setMetrics(prev => ({
+        totalTrades: prev.totalTrades + 1,
+        successfulTrades: prev.successfulTrades + 1,
+        totalProfit: prev.totalProfit + (order.action === 'sell' ? newTrade.total * settings.ratePercentage / 100 : 0),
+        roi: prev.roi + (order.action === 'sell' ? settings.ratePercentage : 0),
+        winRate: ((prev.successfulTrades + 1) / (prev.totalTrades + 1)) * 100,
+      }));
+      
+      toast.success(`${order.action.toUpperCase()} order executed at $${order.targetPrice.toFixed(2)}`);
+    }
   };
 
   // Generate a new mock price

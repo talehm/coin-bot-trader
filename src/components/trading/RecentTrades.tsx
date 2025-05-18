@@ -52,7 +52,7 @@ const RecentTrades: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-medium">${trade.price.toFixed(2)}</p>
-                  <p className="text-xs text-muted-foreground">{trade.amount} BTC</p>
+                  <p className="text-xs text-muted-foreground">{trade.amount} {trade.pair.substring(0, 3)}</p>
                 </div>
               </div>
             ))}
