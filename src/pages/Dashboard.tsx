@@ -11,7 +11,14 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 const Dashboard: React.FC = () => {
-  const { settings, currentPrice, targetPrice, pendingOrder, simulateTargetPriceReached } = useTrading();
+  const { 
+    settings, 
+    currentPrice, 
+    targetPrice, 
+    pendingOrder, 
+    simulateTargetPriceReached, 
+    metrics 
+  } = useTrading();
   
   // Calculate percentage to target
   const calculatePercentToTarget = () => {
@@ -54,6 +61,17 @@ const Dashboard: React.FC = () => {
   const handleSimulateExecution = (order: any) => {
     simulateTargetPriceReached(order);
     toast.success(`Simulated ${order.pair} reaching target price of $${order.targetPrice.toFixed(2)}`);
+    
+    // Show profit update notification
+    const profitAmount = order.action === 'sell' ? 
+      (order.targetPrice * order.amount * settings.ratePercentage / 100).toFixed(2) : 0;
+    
+    if (order.action === 'sell') {
+      toast.success(`Profit increased by $${profitAmount}`, {
+        duration: 3000,
+        className: "bg-profit/10 border-profit text-profit"
+      });
+    }
   };
   
   return (
@@ -82,6 +100,24 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+      
+      {/* Performance Quick Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="p-3 rounded-lg border border-border bg-secondary/5">
+          <div className="text-xs text-muted-foreground">Total Trades</div>
+          <div className="text-xl font-semibold mt-1">{metrics.totalTrades}</div>
+        </div>
+        <div className="p-3 rounded-lg border border-border bg-secondary/5">
+          <div className="text-xs text-muted-foreground">Total Profit</div>
+          <div className={`text-xl font-semibold mt-1 ${metrics.totalProfit >= 0 ? 'text-profit' : 'text-loss'}`}>
+            ${metrics.totalProfit.toFixed(2)}
+          </div>
+        </div>
+        <div className="p-3 rounded-lg border border-border bg-secondary/5">
+          <div className="text-xs text-muted-foreground">Success Rate</div>
+          <div className="text-xl font-semibold mt-1">{metrics.winRate.toFixed(1)}%</div>
+        </div>
+      </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
