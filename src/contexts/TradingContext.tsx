@@ -66,6 +66,7 @@ interface TradingContextType {
     roi: number;
     winRate: number;
   };
+  simulateTargetPriceReached: (order: PendingOrder) => void;
 }
 
 // Base prices for different crypto pairs
@@ -81,17 +82,30 @@ const basePrices: Record<string, number> = {
 const MOCK_VOLATILITY = 0.005; // 0.5% price movement per update
 
 // Initial mocked trade for demo purposes
-const initialMockedTrade: Trade = {
-  id: `trade-${Date.now() - 3600000}`,
-  timestamp: Date.now() - 3600000, // 1 hour ago
-  pair: 'ADAUSDT',
-  action: 'buy',
-  price: 0.35,
-  amount: 100,
-  total: 35,
-  status: 'completed',
-  mode: 'simulation',
-};
+const initialMockedTrades: Trade[] = [
+  {
+    id: `trade-${Date.now() - 3600000}`,
+    timestamp: Date.now() - 3600000, // 1 hour ago
+    pair: 'ADAUSDT',
+    action: 'buy',
+    price: 0.35,
+    amount: 100,
+    total: 35,
+    status: 'completed',
+    mode: 'simulation',
+  },
+  {
+    id: `trade-${Date.now() - 7200000}`, // 2 hours ago
+    timestamp: Date.now() - 7200000,
+    pair: 'BTCUSDT',
+    action: 'sell',
+    price: 19950.25,
+    amount: 0.05,
+    total: 997.51,
+    status: 'completed',
+    mode: 'simulation',
+  }
+];
 
 // Default settings
 const defaultSettings: TradingSettings = {
@@ -108,7 +122,7 @@ const TradingContext = createContext<TradingContextType | undefined>(undefined);
 
 export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<TradingSettings>(defaultSettings);
-  const [trades, setTrades] = useState<Trade[]>([initialMockedTrade]);
+  const [trades, setTrades] = useState<Trade[]>(initialMockedTrades);
   const [pendingOrder, setPendingOrder] = useState<PendingOrder | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number | null>(basePrices[defaultSettings.coinPair]);
   const [targetPrice, setTargetPrice] = useState<number | null>(null);
@@ -116,11 +130,11 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [balance, setBalance] = useState({ base: 1, quote: 20000 }); // 1 BTC, 20000 USDT
   const [metrics, setMetrics] = useState({
-    totalTrades: 1, // Starting with 1 because of our initial mocked trade
-    successfulTrades: 1,
+    totalTrades: initialMockedTrades.length,
+    successfulTrades: initialMockedTrades.length,
     totalProfit: 0,
     roi: 0,
-    winRate: 100, // 1/1 = 100%
+    winRate: 100, // All successful
   });
 
   // Function to update settings
@@ -330,6 +344,49 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     toast.info("Trading stopped");
   };
 
+  // New function to simulate reaching the target price for a specific order
+  const simulateTargetPriceReached = (order: PendingOrder) => {
+    // Check if it's the real pending order or a mocked one
+    const isRealOrder = pendingOrder && order.id === pendingOrder.id;
+    
+    // For the real pending order, use the existing logic
+    if (isRealOrder && pendingOrder) {
+      // First, set the current price to the target price to simulate reaching it
+      setCurrentPrice(order.targetPrice);
+      
+      // Then execute the pending order using the existing logic
+      executePendingOrder();
+      return;
+    }
+    
+    // For mocked orders, create a completed trade from the order
+    const newTrade: Trade = {
+      id: `trade-${Date.now()}`,
+      timestamp: Date.now(),
+      pair: order.pair,
+      action: order.action,
+      price: order.targetPrice,
+      amount: order.amount,
+      total: order.targetPrice * order.amount,
+      status: 'completed',
+      mode: settings.mode,
+    };
+    
+    // Add to trades
+    setTrades(prev => [newTrade, ...prev]);
+    
+    // Update metrics
+    setMetrics(prev => ({
+      totalTrades: prev.totalTrades + 1,
+      successfulTrades: prev.successfulTrades + 1,
+      totalProfit: prev.totalProfit + (order.action === 'sell' ? newTrade.total * settings.ratePercentage / 100 : 0),
+      roi: prev.roi + (order.action === 'sell' ? settings.ratePercentage : 0),
+      winRate: ((prev.successfulTrades + 1) / (prev.totalTrades + 1)) * 100,
+    }));
+    
+    toast.success(`${order.action.toUpperCase()} order executed at $${order.targetPrice.toFixed(2)}`);
+  };
+
   // Generate a new mock price
   const generateMockPrice = (lastPrice: number) => {
     const changePercent = (Math.random() * 2 - 1) * MOCK_VOLATILITY;
@@ -403,6 +460,7 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
         toggleMode,
         balance,
         metrics,
+        simulateTargetPriceReached,
       }}
     >
       {children}

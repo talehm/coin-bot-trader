@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import PriceChart from '@/components/trading/PriceChart';
 import TradeControls from '@/components/trading/TradeControls';
 import TradingMetrics from '@/components/trading/TradingMetrics';
@@ -7,9 +7,11 @@ import RecentTrades from '@/components/trading/RecentTrades';
 import { useTrading } from '@/contexts/TradingContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 const Dashboard: React.FC = () => {
-  const { settings, currentPrice, targetPrice, pendingOrder } = useTrading();
+  const { settings, currentPrice, targetPrice, pendingOrder, simulateTargetPriceReached } = useTrading();
   
   // Calculate percentage to target
   const calculatePercentToTarget = () => {
@@ -47,6 +49,12 @@ const Dashboard: React.FC = () => {
   const displayOrders = pendingOrder 
     ? [pendingOrder, ...mockedPendingOrders] 
     : mockedPendingOrders;
+
+  // Function to handle simulating target price reached
+  const handleSimulateExecution = (order: any) => {
+    simulateTargetPriceReached(order);
+    toast.success(`Simulated ${order.pair} reaching target price of $${order.targetPrice.toFixed(2)}`);
+  };
   
   return (
     <div className="space-y-6">
@@ -107,6 +115,7 @@ const Dashboard: React.FC = () => {
                   <TableHead className="text-right">Target Price</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-right">Status</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -129,6 +138,16 @@ const Dashboard: React.FC = () => {
                       <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-500/20 text-orange-500 rounded-full">
                         PENDING
                       </span>
+                    </TableCell>
+                    <TableCell className="py-3 text-sm text-right">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-xs h-7"
+                        onClick={() => handleSimulateExecution(order)}
+                      >
+                        Simulate
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
