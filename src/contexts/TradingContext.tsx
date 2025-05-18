@@ -260,7 +260,11 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     const newTargetPrice = calculateTargetPrice();
     setTargetPrice(newTargetPrice);
     
-    // Create a new pending order
+    // Create a new pending order after 10 seconds delay
+    toast.info("Waiting 10 seconds before creating new order...", {
+      duration: 9000
+    });
+    
     setTimeout(() => {
       if (settings.isActive && newTargetPrice) {
         const newOrder: PendingOrder = {
@@ -277,7 +281,7 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
         
         toast.success(`New ${newOrder.action.toUpperCase()} order placed at target price: $${newTargetPrice.toFixed(2)}`);
       }
-    }, 1000); // Small delay to simulate order placement
+    }, 10000); // 10 seconds delay
     
     toast.success(`${action.toUpperCase()} order executed at $${targetPrice.toFixed(2)}`);
   };
